@@ -2,7 +2,7 @@ import os
 import sentencepiece as spm
 
 # Path to the text file containing Azerbaijani language text data
-azerbaijani_text_file = 'data/clean_dataset.txt'
+azerbaijani_text_file = 'data/combined_sentences.txt'
 spm_model_prefix = "sp_az_tokenizer/azerbaijani_spm"
 folder_path="sp_az_tokenizer"
 def train_or_load_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16000, max_sentence_length=1024):

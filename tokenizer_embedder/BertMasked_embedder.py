@@ -47,7 +47,7 @@ config = BertConfig(
 model = BertForMaskedLM(config=config)
 
 
-data_file = "data/clean_dataset.txt"  # Start with a minimum of around 15,000 sentences
+data_file = "data/sample.txt"  # Start with a minimum of around 10,000 sentences
 dataset = AzerbaijaniDataset(data_file, sp_model)
 
 
@@ -66,7 +66,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
 # Training loop
-num_epochs = 15  # 10-20
+num_epochs = 3  # 10-20
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 model.train()

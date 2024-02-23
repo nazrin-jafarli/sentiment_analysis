@@ -7,15 +7,15 @@ model_name = "bert_mlm_az_model"
 model = BertModel.from_pretrained(model_name)
 
 # Load SentencePiece model
-spm_model_path = "azerbaijani_spm.model"
+spm_model_path = "sp_az_tokenizer/azerbaijani_spm.model"
 sp_model = spm.SentencePieceProcessor(model_file=spm_model_path)
 
 # Define your sentence
-sentence = "Mən gedirəm."
+sentence = "Mən evə gedirəm,sağolun."
 
 # Convert tokens to token IDs
 indexed_tokens = sp_model.encode(sentence, out_type=int)
-
+print(indexed_tokens)
 # Convert token IDs to tensor
 tokens_tensor = torch.tensor([indexed_tokens])
 
