@@ -157,15 +157,54 @@ class KMeansSemiSupervised:
         self.centroids = {i: self.unlabeled_embeddings[index] for i, index in enumerate(random_indices)}
         self.centroid_labels = {i: None for i in range(self.n_clusters)}
 
+
+    # fit function in which centroids update does not consider the labelled data only centroids are updated based on unlabelled data
+        
+    # def fit(self, labeled_embeddings, unlabeled_embeddings, labels):
+    #     self.unlabeled_embeddings = unlabeled_embeddings
+    #     self.initialize_centroids(labeled_embeddings, labels)
+
+    #     # print(self.distance_measure)
+
+    #     for _ in range(self.max_iter):
+    #         nearest_labeled_centroid_indices = []
+    #         for x in unlabeled_embeddings:
+    #             distances = []
+    #             for centroid in self.centroids.values():
+    #                 if self.distance_measure == 'cosine':
+    #                     similarity = torch.dot(x, centroid) / (torch.norm(x) * torch.norm(centroid))
+    #                     distance = 1.0 - similarity
+    #                 elif self.distance_measure == 'euclidean':
+    #                     distance = torch.dist(x, centroid)
+    #                 distances.append(distance)
+    #             nearest_labeled_centroid_indices.append(torch.argmin(torch.tensor(distances)).item())
+
+    #         nearest_labeled_centroid_indices = torch.tensor(nearest_labeled_centroid_indices)
+
+    #         for cluster_idx in range(self.n_clusters):
+    #             cluster_indices = (nearest_labeled_centroid_indices == cluster_idx).nonzero().flatten()
+    #             cluster_embeddings = unlabeled_embeddings[cluster_indices]
+    #             if len(cluster_embeddings) > 0:
+    #                 self.centroids[cluster_idx] = cluster_embeddings.mean(dim=0)
+
+    #     return self.centroids
+
+
+
+    # fit function in which centroids update does not consider the labelled data only centroids are updated based on unlabelled data
+        
     def fit(self, labeled_embeddings, unlabeled_embeddings, labels):
         self.unlabeled_embeddings = unlabeled_embeddings
         self.initialize_centroids(labeled_embeddings, labels)
 
+        all_embeddings = torch.cat((labeled_embeddings, unlabeled_embeddings), dim=0)
+
+
         # print(self.distance_measure)
 
         for _ in range(self.max_iter):
-            nearest_labeled_centroid_indices = []
-            for x in unlabeled_embeddings:
+            nearest_centroid_indices = []
+            for x in all_embeddings:
                 distances = []
                 for centroid in self.centroids.values():
                     if self.distance_measure == 'cosine':
@@ -174,17 +213,18 @@ class KMeansSemiSupervised:
                     elif self.distance_measure == 'euclidean':
                         distance = torch.dist(x, centroid)
                     distances.append(distance)
-                nearest_labeled_centroid_indices.append(torch.argmin(torch.tensor(distances)).item())
+                nearest_centroid_indices.append(torch.argmin(torch.tensor(distances)).item())
 
-            nearest_labeled_centroid_indices = torch.tensor(nearest_labeled_centroid_indices)
+            nearest_centroid_indices = torch.tensor(nearest_centroid_indices)
 
             for cluster_idx in range(self.n_clusters):
-                cluster_indices = (nearest_labeled_centroid_indices == cluster_idx).nonzero().flatten()
-                cluster_embeddings = unlabeled_embeddings[cluster_indices]
+                cluster_indices = (nearest_centroid_indices == cluster_idx).nonzero().flatten()
+                cluster_embeddings = all_embeddings[cluster_indices]
                 if len(cluster_embeddings) > 0:
                     self.centroids[cluster_idx] = cluster_embeddings.mean(dim=0)
 
         return self.centroids
+
 
     def predict(self, unlabeled_embeddings):
         cluster_indices = []
