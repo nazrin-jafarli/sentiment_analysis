@@ -6,15 +6,15 @@ from transformers import BertModel
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
-from torch.nn.utils.rnn import pad_sequence
-from sklearn.cluster import KMeans
-from sklearn.metrics import accuracy_score
-import random
+# from torch.nn.utils.rnn import pad_sequence  # I just did manual padding 
+# from sklearn.metrics import accuracy_score # I calculated accuracy manually
 import numpy as np
 from scipy.spatial.distance import euclidean
 from sklearn.metrics.pairwise import cosine_similarity as sk_cosine_similarity
-from sklearn.decomposition import PCA
-from scipy.special import softmax
+# from sklearn.decomposition import PCA  # can be needed for k clustering visualization
+# from scipy.special import softmax # no need as nn.CrossEntropyLoss() internally applies softmax activation to the logits
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+
 
 # Load your trained SentencePiece model
 spm_model_path = "../sp_az_tokenizer/azerbaijani_spm.model"
@@ -56,6 +56,37 @@ class SimpleClassifier(nn.Module):
 
 
 
+# Function to calculate evaluation metrics for multi-class classification
+# Function to calculate evaluation metrics for multi-class classification
+def calculate_metrics(true_labels, predicted_labels):
+    precision = precision_score(true_labels, predicted_labels, average='macro')
+    recall = recall_score(true_labels, predicted_labels, average='macro')
+    f1 = f1_score(true_labels, predicted_labels, average='macro')
+    return precision, recall, f1
+
+
+# Visualize the confusion matrix
+def plot_confusion_matrix(true_labels, predicted_labels, classes):
+    # Convert one-hot encoded labels back to original class labels
+    true_labels_argmax = np.argmax(true_labels, axis=1)
+    predicted_labels_argmax = np.argmax(predicted_labels, axis=1)
+
+    # Calculate confusion matrix
+    cm = confusion_matrix(true_labels_argmax, predicted_labels_argmax)
+    
+    # Plot the confusion matrix
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title('Confusion Matrix')
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes)
+    plt.yticks(tick_marks, classes)
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.show()
+
+
+
 # Load positive and negative class data from text files
 def load_data(file_path):
     data = []
@@ -66,6 +97,7 @@ def load_data(file_path):
 
 positive_data = load_data('datasets/positive/positive_data.txt')
 negative_data = load_data('datasets/negative/negative_data.txt')
+neutral_data = load_data('datasets/neutral/neutral_data.txt')
 unlabelled_data=load_data('datasets/unlabelled/unlabelled_data.txt')
 
 # Tokenize the data using SentencePiece and pad sequences
@@ -83,16 +115,21 @@ def process_data_with_attention(data, max_length):
     padded_data = torch.stack(padded_data)  # Convert list of tensors to a single tensor
     attention_mask = (padded_data != 0).float()
     return padded_data, attention_mask
-        
+       
 
 # # Tokenize the positive and negative data and create attention masks
 positive_padded, positive_attention_mask = process_data_with_attention(positive_data, max_seq_length)
+print('positive_padded',positive_padded)
 positive_padded = positive_padded.to(device)
 positive_attention_mask = positive_attention_mask.to(device)
 
 negative_padded, negative_attention_mask = process_data_with_attention(negative_data, max_seq_length)
 negative_padded = negative_padded.to(device)
 negative_attention_mask = negative_attention_mask.to(device)
+
+neutral_padded, neutral_attention_mask = process_data_with_attention(neutral_data, max_seq_length)
+neutral_padded = neutral_padded.to(device)
+neutral_attention_mask = neutral_attention_mask.to(device)
 
 
 unlabeled_padded, unlabeled_attention_mask = process_data_with_attention(unlabelled_data, max_seq_length)
@@ -104,6 +141,7 @@ unlabeled_attention_mask=unlabeled_attention_mask.to(device)
 # Generate embeddings for positive and negative class data
 positive_embeddings = []
 negative_embeddings = []
+neutral_embeddings=[]
 unlabeled_embeddings=[]
 
 
@@ -119,13 +157,16 @@ def generate_embeddings(padded_data, attention_mask):
 
 
 positive_embeddings = generate_embeddings(positive_padded, positive_attention_mask)
+print('positive_embeddings',positive_embeddings)
 negative_embeddings = generate_embeddings(negative_padded, negative_attention_mask)
+neutral_embeddings = generate_embeddings(neutral_padded, neutral_attention_mask)
 unlabeled_embeddings = generate_embeddings(unlabeled_padded, unlabeled_attention_mask)
 
 # Combine positive and negative embeddings and labels
-labeled_embeddings = torch.cat([positive_embeddings, negative_embeddings])
-labels = torch.cat([torch.ones(len(positive_embeddings)), torch.zeros(len(negative_embeddings))])
-print('labels:',type(labels))
+labeled_embeddings = torch.cat([positive_embeddings, negative_embeddings,neutral_embeddings])
+# Assign labels: 0 for negative, 1 for positive, and 2 for neutral
+labels = torch.cat([torch.ones(len(positive_embeddings)), torch.zeros(len(negative_embeddings)), torch.full((len(neutral_embeddings),), 2)])
+print('labels:', type(labels))
 
 
 class KMeansSemiSupervised:
@@ -158,40 +199,7 @@ class KMeansSemiSupervised:
         self.centroid_labels = {i: None for i in range(self.n_clusters)}
 
 
-    # fit function in which centroids update does not consider the labelled data only centroids are updated based on unlabelled data
-        
-    # def fit(self, labeled_embeddings, unlabeled_embeddings, labels):
-    #     self.unlabeled_embeddings = unlabeled_embeddings
-    #     self.initialize_centroids(labeled_embeddings, labels)
-
-    #     # print(self.distance_measure)
-
-    #     for _ in range(self.max_iter):
-    #         nearest_labeled_centroid_indices = []
-    #         for x in unlabeled_embeddings:
-    #             distances = []
-    #             for centroid in self.centroids.values():
-    #                 if self.distance_measure == 'cosine':
-    #                     similarity = torch.dot(x, centroid) / (torch.norm(x) * torch.norm(centroid))
-    #                     distance = 1.0 - similarity
-    #                 elif self.distance_measure == 'euclidean':
-    #                     distance = torch.dist(x, centroid)
-    #                 distances.append(distance)
-    #             nearest_labeled_centroid_indices.append(torch.argmin(torch.tensor(distances)).item())
-
-    #         nearest_labeled_centroid_indices = torch.tensor(nearest_labeled_centroid_indices)
-
-    #         for cluster_idx in range(self.n_clusters):
-    #             cluster_indices = (nearest_labeled_centroid_indices == cluster_idx).nonzero().flatten()
-    #             cluster_embeddings = unlabeled_embeddings[cluster_indices]
-    #             if len(cluster_embeddings) > 0:
-    #                 self.centroids[cluster_idx] = cluster_embeddings.mean(dim=0)
-
-    #     return self.centroids
-
-
-
-    # fit function in which centroids update does not consider the labelled data only centroids are updated based on unlabelled data
+    # fit function in which centroids update consider both labelled and unlabelled data
         
     def fit(self, labeled_embeddings, unlabeled_embeddings, labels):
         self.unlabeled_embeddings = unlabeled_embeddings
@@ -206,13 +214,12 @@ class KMeansSemiSupervised:
             nearest_centroid_indices = []
             for x in all_embeddings:
                 distances = []
-                for centroid in self.centroids.values():
-                    if self.distance_measure == 'cosine':
-                        similarity = torch.dot(x, centroid) / (torch.norm(x) * torch.norm(centroid))
-                        distance = 1.0 - similarity
-                    elif self.distance_measure == 'euclidean':
-                        distance = torch.dist(x, centroid)
-                    distances.append(distance)
+                if self.distance_measure == 'cosine':
+                    similarities = sk_cosine_similarity(x.unsqueeze(0), list(self.centroids.values()))
+                    distances = [1.0 - sim for sim in similarities]
+                elif self.distance_measure == 'euclidean':
+                    distances = [euclidean(x.flatten().cpu(), centroid.flatten().cpu()) for centroid in self.centroids.values()]
+
                 nearest_centroid_indices.append(torch.argmin(torch.tensor(distances)).item())
 
             nearest_centroid_indices = torch.tensor(nearest_centroid_indices)
@@ -287,7 +294,7 @@ test_labels=test_labels.long()
 
 
 # Convert training labels to one-hot encoded format
-num_classes = 2
+num_classes = 3
 
 train_labels_one_hot = F.one_hot(train_labels, num_classes=num_classes)
 train_labels_one_hot = train_labels_one_hot.to(device)
@@ -310,36 +317,68 @@ classifier_model = classifier_model.to(device)
 # Define optimizer
 optimizer = optim.Adam(classifier_model.parameters(), lr=0.001)
 
-
 # Train the classifier
 num_epochs = 3
-train_losses = []
-val_losses = []
 
 
-for epoch in range(num_epochs):
-    # Training
-    optimizer.zero_grad()
-    # Forward pass
-    outputs = classifier_model(train_embeddings)
-    # Compute loss using combined outputs and labels
-    train_loss = criterion(outputs, train_labels_one_hot)
-    
-    # Backpropagation
-    train_loss.backward()
-    optimizer.step()
-    train_losses.append(train_loss.item())
+# Define DataLoader for batch-wise training
+batch_size = 8  # Define your desired batch size
+train_data = torch.utils.data.TensorDataset(train_embeddings.to(device), train_labels_one_hot)
+print("train_data",train_data)
+train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
+print("train_loader",train_loader)
 
-    # Validation
-    with torch.no_grad():
-        val_outputs = classifier_model(val_embeddings)  # Pass validation embeddings
-        val_loss = criterion(val_outputs, val_labels_one_hot)  # Compute validation loss
-        val_losses.append(val_loss.item())
-
-    print(f'Epoch {epoch+1}, Train Loss: {train_loss.item()}, Val Loss: {val_loss.item()}')
+val_data = torch.utils.data.TensorDataset(val_embeddings.to(device), val_labels_one_hot)
+val_loader = torch.utils.data.DataLoader(val_data, batch_size=batch_size)
+test_data = torch.utils.data.TensorDataset(test_embeddings.to(device), test_labels_one_hot)
+test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
 
 
-# Plotting training and validation loss curves
+# Function to train the classifier and collect losses
+def train_classifier(model, criterion, optimizer, train_loader, val_loader, num_epochs):
+    train_losses = []
+    val_losses = []
+    for epoch in range(num_epochs):
+        # Training
+        model.train()
+        epoch_train_loss = 0.0
+        for batch_data, batch_labels in train_loader:
+            optimizer.zero_grad()
+            batch_outputs = model(batch_data)
+            batch_loss = criterion(batch_outputs, batch_labels)
+            batch_loss.backward()
+            optimizer.step()
+            epoch_train_loss += batch_loss.item()
+        train_loss = epoch_train_loss / len(train_loader)
+        train_losses.append(train_loss)
+
+        # Validation
+        model.eval()
+        epoch_val_loss = 0.0
+        val_total = 0
+        val_correct = 0
+        with torch.no_grad():
+            for batch_data, batch_labels in val_loader:
+                batch_outputs = model(batch_data)
+                batch_loss = criterion(batch_outputs, batch_labels)
+                epoch_val_loss += batch_loss.item()
+                _, predicted = torch.max(batch_outputs.data, 1)
+                val_total += batch_labels.size(0)
+                val_correct += (predicted == batch_labels).sum().item()
+        val_loss = epoch_val_loss / len(val_loader)
+        val_accuracy = val_correct / val_total
+        val_losses.append(val_loss)
+
+        print(f'Epoch {epoch+1}, Train Loss: {train_loss}, Val Loss: {val_loss}, Val Accuracy: {val_accuracy}')
+
+    return train_losses, val_losses
+
+
+
+# Train the classifier and collect losses
+train_losses, val_losses = train_classifier(classifier_model, criterion, optimizer, train_loader, val_loader, num_epochs)
+
+# Plot the training and validation loss curves
 plt.plot(train_losses, label='Training Loss')
 plt.plot(val_losses, label='Validation Loss')
 plt.xlabel('Epochs')
@@ -349,13 +388,38 @@ plt.legend()
 plt.show()
 
 # Evaluate on test data
-with torch.no_grad():
-    test_outputs = classifier_model(test_embeddings)
-    # Apply softmax to the test outputs
-    test_outputs_softmax = F.softmax(test_outputs, dim=1)
-    test_loss = criterion(test_outputs_softmax, test_labels_one_hot)
-    print(f'Test Loss: {test_loss.item()}')
+def evaluate_model(model, criterion, test_loader):
+    test_loss = 0
+    test_total = 0
+    test_correct = 0
+    predicted_labels = []
+    true_labels = []
+    model.eval()
+    with torch.no_grad():
+        for batch_data, batch_labels in test_loader:
+            batch_outputs = model(batch_data)
+            batch_loss = criterion(batch_outputs, batch_labels)
+            test_loss += batch_loss.item()
+            _, predicted = torch.max(batch_outputs.data, 1)
+            test_total += batch_labels.size(0)
+            test_correct += (predicted == batch_labels).sum().item()
+            predicted_labels.extend(predicted.cpu().numpy())
+            true_labels.extend(batch_labels.cpu().numpy())
+    test_loss /= len(test_loader)
+    test_accuracy = test_correct / test_total
+    return test_loss, test_accuracy, np.array(true_labels), np.array(predicted_labels)
 
 
+# early_stopping_patience = 3
+train_classifier(classifier_model, criterion, optimizer, train_loader, val_loader, num_epochs)
 
+# Evaluate the trained model
+test_loss, test_accuracy, true_labels, predicted_labels = evaluate_model(classifier_model, criterion, test_loader)
+print(f'Test Loss: {test_loss}, Test Accuracy: {test_accuracy}')
 
+# Calculate additional evaluation metrics
+precision, recall, f1 = calculate_metrics(true_labels, predicted_labels)
+print(f'Precision: {precision}, Recall: {recall}, F1-score: {f1}')
+
+# Visualize the confusion matrix
+plot_confusion_matrix(true_labels, predicted_labels, classes=['Class 0', 'Class 1'])
