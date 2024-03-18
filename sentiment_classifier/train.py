@@ -14,16 +14,17 @@ from sklearn.metrics.pairwise import cosine_similarity as sk_cosine_similarity
 # from sklearn.decomposition import PCA  # can be needed for k clustering visualization
 # from scipy.special import softmax # no need as nn.CrossEntropyLoss() internally applies softmax activation to the logits
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
-
+from preprocess_data import preprocess_text
+from kmeans import KMeansSemiSupervised
 
 # Load your trained SentencePiece model
-spm_model_path = "../sp_az_tokenizer/azerbaijani_spm.model"
+spm_model_path = "../tokenizer_embedder/sp_az_tokenizer/azerbaijani_spm.model"
 sp = spm.SentencePieceProcessor(model_file=spm_model_path)
 
 dist_measure='euclidean' # euclidean or cosine 
 
 # Load your pre-trained BERT model
-bert_model_path = "../bert_mlm_az_model"
+bert_model_path = "../tokenizer_embedder/bert_mlm_az_model"
 bert_model = BertModel.from_pretrained(bert_model_path)
 
 
@@ -36,7 +37,6 @@ bert_model = bert_model.to(device)
 # Freeze BERT parameters
 for param in bert_model.parameters():
     param.requires_grad = False
-
 
 
 # Define Simple Classification Network
@@ -55,8 +55,6 @@ class SimpleClassifier(nn.Module):
         return x  # Output logits for each class, no need to squeeze the dimension
 
 
-
-# Function to calculate evaluation metrics for multi-class classification
 # Function to calculate evaluation metrics for multi-class classification
 def calculate_metrics(true_labels, predicted_labels):
     precision = precision_score(true_labels, predicted_labels, average='macro')
@@ -83,8 +81,9 @@ def plot_confusion_matrix(true_labels, predicted_labels, classes):
     plt.yticks(tick_marks, classes)
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
-    plt.show()
-
+    plt.legend()
+    plt.savefig("Confusion Matrix.png")  # Save the plot as loss_curve.png
+    # plt.show()
 
 
 # Load positive and negative class data from text files
@@ -92,7 +91,10 @@ def load_data(file_path):
     data = []
     with open(file_path, 'r', encoding='utf-8') as file:
         for line in file:
-            data.append(line.strip())
+            # Preprocess each line of text
+            processed_line = preprocess_text(line)
+            # Append the processed text to the data list
+            data.append(processed_line)
     return data
 
 positive_data = load_data('datasets/positive/positive_data.txt')
@@ -167,88 +169,6 @@ labeled_embeddings = torch.cat([positive_embeddings, negative_embeddings,neutral
 # Assign labels: 0 for negative, 1 for positive, and 2 for neutral
 labels = torch.cat([torch.ones(len(positive_embeddings)), torch.zeros(len(negative_embeddings)), torch.full((len(neutral_embeddings),), 2)])
 print('labels:', type(labels))
-
-
-class KMeansSemiSupervised:
-    def __init__(self, n_clusters=2, max_iter=10, distance_measure='cosine'):
-        self.n_clusters = n_clusters
-        self.max_iter = max_iter
-        self.centroids = None
-        self.distance_measure = distance_measure
-        self.unlabeled_embeddings = None
-        self.centroid_labels = None  # Add centroid_labels attribute
-
-
-    def initialize_centroids(self, labeled_data, labels):
-        if len(labeled_data) > 0:
-            self.centroids = {}
-            self.centroid_labels = {}
-            unique_labels = torch.unique(labels)
-            for idx, label_value in enumerate(unique_labels):
-                label_data = labeled_data[labels == label_value]
-                centroid = label_data.mean(dim=0)
-                self.centroids[idx] = centroid
-                self.centroid_labels[idx] = label_value.item()
-        else:
-            self.initialize_centroids_randomly()
-
-
-    def initialize_centroids_randomly(self):
-        random_indices = torch.randperm(len(self.unlabeled_embeddings))[:self.n_clusters]
-        self.centroids = {i: self.unlabeled_embeddings[index] for i, index in enumerate(random_indices)}
-        self.centroid_labels = {i: None for i in range(self.n_clusters)}
-
-
-    # fit function in which centroids update consider both labelled and unlabelled data
-        
-    def fit(self, labeled_embeddings, unlabeled_embeddings, labels):
-        self.unlabeled_embeddings = unlabeled_embeddings
-        self.initialize_centroids(labeled_embeddings, labels)
-
-        all_embeddings = torch.cat((labeled_embeddings, unlabeled_embeddings), dim=0)
-
-
-        # print(self.distance_measure)
-
-        for _ in range(self.max_iter):
-            nearest_centroid_indices = []
-            for x in all_embeddings:
-                distances = []
-                if self.distance_measure == 'cosine':
-                    similarities = sk_cosine_similarity(x.unsqueeze(0), list(self.centroids.values()))
-                    distances = [1.0 - sim for sim in similarities]
-                elif self.distance_measure == 'euclidean':
-                    distances = [euclidean(x.flatten().cpu(), centroid.flatten().cpu()) for centroid in self.centroids.values()]
-
-                nearest_centroid_indices.append(torch.argmin(torch.tensor(distances)).item())
-
-            nearest_centroid_indices = torch.tensor(nearest_centroid_indices)
-
-            for cluster_idx in range(self.n_clusters):
-                cluster_indices = (nearest_centroid_indices == cluster_idx).nonzero().flatten()
-                cluster_embeddings = all_embeddings[cluster_indices]
-                if len(cluster_embeddings) > 0:
-                    self.centroids[cluster_idx] = cluster_embeddings.mean(dim=0)
-
-        return self.centroids
-
-
-    def predict(self, unlabeled_embeddings):
-        cluster_indices = []
-        for x in unlabeled_embeddings:
-            distances = []
-            for centroid in self.centroids.values():
-                if self.distance_measure == 'cosine':
-                    similarity = torch.dot(x, centroid) / (torch.norm(x) * torch.norm(centroid))
-                    distance = 1.0 - similarity
-                elif self.distance_measure == 'euclidean':
-                    distance = torch.dist(x, centroid)
-                distances.append(distance)
-            closest_centroid_label = min(self.centroids, key=lambda c: distances[c])
-            semantic_label = self.centroid_labels[closest_centroid_label]
-            cluster_indices.append(semantic_label)
-        return cluster_indices
-
 
 # Initialize KMeansSemiSupervised instance
 kmeans_semi_supervised = KMeansSemiSupervised(n_clusters=2, max_iter=100,distance_measure=dist_measure) #distance_measure 'cosine' or 'euclidean' 
@@ -378,6 +298,9 @@ def train_classifier(model, criterion, optimizer, train_loader, val_loader, num_
 # Train the classifier and collect losses
 train_losses, val_losses = train_classifier(classifier_model, criterion, optimizer, train_loader, val_loader, num_epochs)
 
+# Save the trained model
+torch.save(classifier_model.state_dict(), 'classifier_model.pth')
+
 # Plot the training and validation loss curves
 plt.plot(train_losses, label='Training Loss')
 plt.plot(val_losses, label='Validation Loss')
@@ -385,7 +308,8 @@ plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.title('Training and Validation Loss')
 plt.legend()
-plt.show()
+plt.savefig("Classifier_loss_curve.png")  # Save the plot as loss_curve.png
+# plt.show()
 
 # Evaluate on test data
 def evaluate_model(model, criterion, test_loader):

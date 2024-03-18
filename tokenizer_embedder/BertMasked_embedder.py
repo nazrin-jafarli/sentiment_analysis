@@ -4,6 +4,8 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torch.nn.utils.rnn import pad_sequence
 import sentencepiece as spm
 import matplotlib.pyplot as plt
+from preprocess_data import preprocess_text
+
 
 spm_model_path = "sp_az_tokenizer/azerbaijani_spm.model"
 sp_model = spm.SentencePieceProcessor(model_file=spm_model_path)
@@ -17,8 +19,10 @@ class AzerbaijaniDataset(Dataset):
         self.tokenized_data = []
         with open(data_file, "r", encoding="utf-8") as file:
             for line in file:
-                # Tokenize the text and truncate/pad tokens to max_length
-                tokens = sp_model.encode(line.strip(), out_type=int)
+                # Preprocess the text by removing punctuation and converting to lowercase
+                preprocessed_line = preprocess_text(line)
+                # Tokenize the preprocessed text and truncate/pad tokens to max_length
+                tokens = sp_model.encode(preprocessed_line, out_type=int)
                 # Apply padding or truncation logic
                 if len(tokens) > max_length:
                     tokens = tokens[:max_length]
@@ -47,7 +51,7 @@ config = BertConfig(
 model = BertForMaskedLM(config=config)
 
 
-data_file = "data/sample.txt"  # Start with a minimum of around 10,000 sentences
+data_file = "sample_data/sample.txt"  # Start with a minimum of around 10,000 sentences
 dataset = AzerbaijaniDataset(data_file, sp_model)
 
 
@@ -138,6 +142,7 @@ plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.title('Training and Validation Loss')
 plt.legend()
-plt.show()
+plt.savefig("BertMasked_loss_curve.png")  # Save the plot as loss_curve.png
+# plt.show()
 # Save the trained model
 model.save_pretrained("bert_mlm_az_model")

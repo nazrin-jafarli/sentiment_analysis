@@ -1,11 +1,15 @@
 import os
 import sentencepiece as spm
+import re
+from preprocess_data import preprocess_text
 
 # Path to the text file containing Azerbaijani language text data
-azerbaijani_text_file = 'data/combined_sentences.txt'
+azerbaijani_text_file = 'sample_data/combined_sentences.txt'
 spm_model_prefix = "sp_az_tokenizer/azerbaijani_spm"
 folder_path="sp_az_tokenizer"
-def train_or_load_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16000, max_sentence_length=1024):
+
+
+def train_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16000, max_sentence_length=1024):
     """
     Trains a SentencePiece model from the text file if it doesn't exist, 
     otherwise loads the existing model.
@@ -15,18 +19,11 @@ def train_or_load_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    # Check if the SentencePiece model already exists
-    if os.path.exists(f"{spm_model_prefix}.model"):
-        print("Found existing SentencePiece model. Loading...")
-        sp_tokenizer = spm.SentencePieceProcessor()
-        sp_tokenizer.load(f"{spm_model_prefix}.model")
-        return sp_tokenizer
-
-    # Otherwise, train a new SentencePiece model
-    print("SentencePiece model not found. Training...")
     # Read the text data from the file
     with open(text_file, 'r', encoding='utf-8') as f:
-        data = f.readlines()
+        # data = f.readlines()
+        data = [preprocess_text(sentence) for sentence in f.readlines()]
+
     
     # Write each sentence to the training file
     spm_train_input = f"{folder_path}/azerbaijani_text.txt"
@@ -43,10 +40,6 @@ def train_or_load_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16
 
     return sp_tokenizer
 
-print(f"========Training or loading SentencePiece model from {azerbaijani_text_file}=======")
-sp_tokenizer = train_or_load_sentencepiece_model(azerbaijani_text_file, spm_model_prefix)
+print(f"========Training SentencePiece model from {azerbaijani_text_file}=======")
+train_sentencepiece_model(azerbaijani_text_file, spm_model_prefix)
 
-# Test SentencePiece tokenizer
-input_string = "Mən təxminən axşam saat altıda evə qayıdacağam."
-encoded_tokens = sp_tokenizer.encode_as_pieces(input_string)
-print(encoded_tokens)
