@@ -3,7 +3,7 @@ from preprocess_data import preprocess_text
 
 
 # Load the SentencePiece model
-spm_model_path = "sp_az_tokenizer/azerbaijani_spm.model"
+spm_model_path = "SP_aze_tokenizer/azerbaijani_spm.model"
 sp_model = spm.SentencePieceProcessor(model_file=spm_model_path)
 
 # Define your sample sentence

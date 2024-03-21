@@ -5,17 +5,23 @@ from torch.nn.utils.rnn import pad_sequence
 import sentencepiece as spm
 import matplotlib.pyplot as plt
 from preprocess_data import preprocess_text
+import os
 
 
-spm_model_path = "sp_az_tokenizer/azerbaijani_spm.model"
+
+
+spm_model_path = "SP_aze_tokenizer/azerbaijani_spm.model"
 sp_model = spm.SentencePieceProcessor(model_file=spm_model_path)
 # Define the special token for masking
 mask_token_id = sp_model.piece_to_id("[MASK]")
-max_length = 128
+max_length = 256
+num_epochs = 3
+batch_size = 8
+learning_rate = 5e-5
 
 
 class AzerbaijaniDataset(Dataset):
-    def __init__(self, data_file, sp_model, max_length=128):
+    def __init__(self, data_file, sp_model, max_length=256):
         self.tokenized_data = []
         with open(data_file, "r", encoding="utf-8") as file:
             for line in file:
@@ -60,89 +66,98 @@ val_size = len(dataset) - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
 
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=8)
+# Create DataLoaders for training and validation
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda x: pad_sequence(x, batch_first=True))
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, collate_fn=lambda x: pad_sequence(x, batch_first=True))
 
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+# Define evaluation function
+def evaluate_model(model, dataloader, device):
+    model.eval()
+    total_loss = 0
+    with torch.no_grad():
+        for batch in dataloader:
+            padded_batch = batch.to(device)
+            attention_mask = (padded_batch != 0).float().to(device)
+
+            inputs, labels = padded_batch.clone(), padded_batch.clone()
+            masked_indices = torch.rand(inputs.shape) < 0.15
+            inputs[masked_indices] = mask_token_id
+
+            outputs = model(input_ids=inputs, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
+            total_loss += loss.item()
+
+    average_loss = total_loss / len(dataloader)
+    return average_loss
 
 
+# Define training function
+def train_model(model, train_dataloader, val_dataloader, optimizer, scheduler, device):
+    model.train()
+    train_losses = []
+    val_losses = []
+    best_val_loss = float('inf')  # Initialize with a very high value
+    # Define the directory for saving checkpoints
+    checkpoint_dir = "BertMasked_aze_embedder"
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+    best_model_path = os.path.join(checkpoint_dir, "bert_mlm_az_best_model.pth")
+
+    for epoch in range(num_epochs):
+        total_loss = 0
+        for batch in train_dataloader:
+            padded_batch = batch.to(device)
+            attention_mask = (padded_batch != 0).float().to(device)
+
+            inputs, labels = padded_batch.clone(), padded_batch.clone()
+            masked_indices = torch.rand(inputs.shape) < 0.15
+            inputs[masked_indices] = mask_token_id
+
+            outputs = model(input_ids=inputs, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            total_loss += loss.item()
+
+        train_loss = total_loss / len(train_dataloader)
+        train_losses.append(train_loss)
+
+        val_loss = evaluate_model(model, val_dataloader, device)
+        val_losses.append(val_loss)
+        
+        print(f"Epoch {epoch+1}, Train Loss: {train_loss}, Val Loss: {val_loss}")
+
+
+        # Save the best model
+        if val_loss < best_val_loss:
+            torch.save(model.state_dict(), best_model_path)
+            best_val_loss = val_loss
+
+
+    # Load the state dict into the existing model instance
+    model.load_state_dict(torch.load(best_model_path))
+    # best_model.load_state_dict(torch.load(best_model_path))
+    return train_losses, val_losses, model
+
+
+# Initialize optimizer and scheduler
+optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
-# Training loop
-num_epochs = 3  # 10-20
+# Train the model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
-model.train()
+train_losses, val_losses, best_model = train_model(model, train_dataloader, val_dataloader, optimizer, scheduler, device)
 
-train_losses = []
-val_losses = []
-
-for epoch in range(num_epochs):
-    total_loss = 0
-    for batch in train_dataloader:
-        # Now, after the loop, pad the tokenized sequences
-        padded_batch = pad_sequence(batch, batch_first=True).to(device)
-
-        # Create attention mask
-        attention_mask = (padded_batch != 0).float().to(device)  # 1 for real tokens, 0 for padding
-
-        # Clone inputs and labels
-        inputs, labels = padded_batch.clone(), padded_batch.clone()
-
-        # Apply masking
-        masked_indices = torch.rand(inputs.shape) < 0.15
-        inputs[masked_indices] = mask_token_id
-       
-        
-        # print(inputs.shape)
-        # print(attention_mask.shape)
-        # print(labels.shape)
-        # print('---')
-        
-            
-        # Pass input IDs to the model
-        outputs = model(input_ids=inputs, attention_mask=attention_mask, labels=labels)  # Pass input_ids instead of inputs
-        loss = outputs.loss
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        total_loss += loss.item()
-
-    train_loss = total_loss / len(train_dataloader)
-    train_losses.append(train_loss)
-
-    # Validation
-    model.eval()
-    val_total_loss = 0
-    with torch.no_grad():
-        for val_batch in val_dataloader:
-            padded_val_batch = pad_sequence(val_batch, batch_first=True).to(device)
-            attention_mask_val = (padded_val_batch != 0).float().to(device)
-            inputs_val, labels_val = padded_val_batch.clone(), padded_val_batch.clone()
-            masked_indices_val = torch.rand(inputs_val.shape) < 0.15
-            inputs_val[masked_indices_val] = mask_token_id
-            val_outputs = model(input_ids=inputs_val, attention_mask=attention_mask_val, labels=labels_val)
-            val_loss = val_outputs.loss
-            val_total_loss += val_loss.item()
-    
-    val_loss = val_total_loss / len(val_dataloader)
-    val_losses.append(val_loss)
-
-    print(f"Epoch {epoch+1}, Train Loss: {train_loss}, Val Loss: {val_loss}")
-    model.train()
-
-
-
-# Plotting training and validation loss curves
+# Plot the training and validation loss curves
 plt.plot(train_losses, label='Training Loss')
 plt.plot(val_losses, label='Validation Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.title('Training and Validation Loss')
 plt.legend()
-plt.savefig("BertMasked_loss_curve.png")  # Save the plot as loss_curve.png
-# plt.show()
-# Save the trained model
-model.save_pretrained("bert_mlm_az_model")
+plt.savefig("BertMasked_loss_curve.png")
+

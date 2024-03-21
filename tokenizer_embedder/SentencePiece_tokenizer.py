@@ -4,12 +4,12 @@ import re
 from preprocess_data import preprocess_text
 
 # Path to the text file containing Azerbaijani language text data
-azerbaijani_text_file = 'sample_data/combined_sentences.txt'
-spm_model_prefix = "sp_az_tokenizer/azerbaijani_spm"
-folder_path="sp_az_tokenizer"
+azerbaijani_text_file = 'main_data/final_data_10000.txt'
+spm_model_prefix = "SP_aze_tokenizer/azerbaijani_spm"
+folder_path="SP_aze_tokenizer"
 
 
-def train_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16000, max_sentence_length=1024):
+def train_sentencepiece_model(text_file, spm_model_prefix, vocab_size=16000, max_sentence_length=512):
     """
     Trains a SentencePiece model from the text file if it doesn't exist, 
     otherwise loads the existing model.
