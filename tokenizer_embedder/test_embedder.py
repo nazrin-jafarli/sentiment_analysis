@@ -1,9 +1,6 @@
 import torch
 from transformers import BertModel
 import sentencepiece as spm
-import re
-from preprocess_data import preprocess_text
-
 
 # Load pre-trained BERT model
 model_name = "bert_mlm_az_model"
@@ -14,25 +11,14 @@ model.eval()  # Set model to evaluation mode
 spm_model_path = "SP_aze_tokenizer/azerbaijani_spm.model"
 sp_model = spm.SentencePieceProcessor(model_file=spm_model_path)
 
-def preprocess_text(text):
-    """
-    Preprocesses the text by removing punctuation and converting to lowercase.
-    """
-    # Remove punctuation using regular expressions
-    text_no_punct = re.sub(r'[^\w\s]', '', text)
-    # Convert text to lowercase
-    text_lower = text_no_punct.lower()
-    return text_lower
-
 
 # Define your input sentence
 input_sentence = "Mən evə gedirəm, sağolun. Görüşənədək!"
+input_sentence=input_sentence.lower()
+print(input_sentence)
 
-# Preprocess the input sentence
-preprocessed_sentence = preprocess_text(input_sentence)
-print(preprocessed_sentence)
 # Convert preprocessed text to token IDs
-indexed_tokens = sp_model.encode(preprocessed_sentence, out_type=int)
+indexed_tokens = sp_model.encode(input_sentence, out_type=int)
 print(indexed_tokens)
 
 # Convert token IDs to tensor

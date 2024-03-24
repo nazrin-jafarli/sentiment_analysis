@@ -2,31 +2,27 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import sentencepiece as spm
-from transformers import BertModel
+from transformers import BertModel, BertForMaskedLM
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 # from torch.nn.utils.rnn import pad_sequence  # I just did manual padding 
 # from sklearn.metrics import accuracy_score # I calculated accuracy manually
 import numpy as np
-from scipy.spatial.distance import euclidean
-from sklearn.metrics.pairwise import cosine_similarity as sk_cosine_similarity
 # from sklearn.decomposition import PCA  # can be needed for k clustering visualization
 # from scipy.special import softmax # no need as nn.CrossEntropyLoss() internally applies softmax activation to the logits
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
-from preprocess_data import preprocess_text
 from kmeans import KMeansSemiSupervised
 
 # Load your trained SentencePiece model
-spm_model_path = "../tokenizer_embedder/sp_az_tokenizer/azerbaijani_spm.model"
+spm_model_path = "../tokenizer_embedder/SP_aze_tokenizer/azerbaijani_spm.model"
 sp = spm.SentencePieceProcessor(model_file=spm_model_path)
 
 dist_measure='euclidean' # euclidean or cosine 
 
 # Load your pre-trained BERT model
-bert_model_path = "../tokenizer_embedder/bert_mlm_az_model"
+bert_model_path = "../tokenizer_embedder/BertMasked_aze_embedder"
 bert_model = BertModel.from_pretrained(bert_model_path)
-
 
 # Check for GPU availability
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -91,16 +87,13 @@ def load_data(file_path):
     data = []
     with open(file_path, 'r', encoding='utf-8') as file:
         for line in file:
-            # Preprocess each line of text
-            processed_line = preprocess_text(line)
-            # Append the processed text to the data list
-            data.append(processed_line)
+            data.append(line.strip())
     return data
 
-positive_data = load_data('datasets/positive/positive_data.txt')
-negative_data = load_data('datasets/negative/negative_data.txt')
-neutral_data = load_data('datasets/neutral/neutral_data.txt')
-unlabelled_data=load_data('datasets/unlabelled/unlabelled_data.txt')
+positive_data = load_data('./main_data/positive/final_positive_aze.txt')
+negative_data = load_data('./main_data/negative/final_negative_aze.txt')
+neutral_data = load_data('./main_data/neutral/final_neutral_aze.txt')
+unlabelled_data=load_data('./main_data/unlabelled/final_unlabelled_aze.txt')
 
 # Tokenize the data using SentencePiece and pad sequences
 max_seq_length = 256
@@ -108,6 +101,8 @@ max_seq_length = 256
 def process_data_with_attention(data, max_length):
     padded_data = []
     for text in data:
+        # Lowercase the text before tokenization
+        text = text.lower()
         tokens = sp.encode(text)
         if len(tokens) > max_length:
             tokens = tokens[:max_length]
@@ -258,6 +253,8 @@ test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
 def train_classifier(model, criterion, optimizer, train_loader, val_loader, num_epochs):
     train_losses = []
     val_losses = []
+    best_val_loss = float('inf')  # Initialize with a very high value
+    best_model_state = None  # Initialize to None
     for epoch in range(num_epochs):
         # Training
         model.train()
@@ -289,8 +286,16 @@ def train_classifier(model, criterion, optimizer, train_loader, val_loader, num_
         val_accuracy = val_correct / val_total
         val_losses.append(val_loss)
 
-        print(f'Epoch {epoch+1}, Train Loss: {train_loss}, Val Loss: {val_loss}, Val Accuracy: {val_accuracy}')
 
+        # Save the best model based on validation loss
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model_state = model.state_dict()
+
+        print(f'Epoch {epoch+1}, Train Loss: {train_loss}, Val Loss: {val_loss}, Val Accuracy: {val_accuracy}')
+   
+    # Load the best model state before returning
+    model.load_state_dict(best_model_state)
     return train_losses, val_losses
 
 
@@ -346,4 +351,10 @@ precision, recall, f1 = calculate_metrics(true_labels, predicted_labels)
 print(f'Precision: {precision}, Recall: {recall}, F1-score: {f1}')
 
 # Visualize the confusion matrix
-plot_confusion_matrix(true_labels, predicted_labels, classes=['Class 0', 'Class 1'])
+plot_confusion_matrix(true_labels, predicted_labels, classes=['Class 0', 'Class 1','Class 2'])
+
+
+# Save evaluation metrics to a file
+with open("evaluation_metrics.txt", "w") as file:
+    file.write(f'Test Loss: {test_loss}, Test Accuracy: {test_accuracy}\n')
+    file.write(f'Precision: {precision}, Recall: {recall}, F1-score: {f1}\n')

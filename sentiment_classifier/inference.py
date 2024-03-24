@@ -1,15 +1,15 @@
-from preprocess_data import preprocess_text
+
 import torch
 import sentencepiece as spm
 from transformers import BertModel
-from main import SimpleClassifier
+from train import SimpleClassifier
 
 # Load your trained SentencePiece model
-spm_model_path = "../tokenizer_embedder/sp_az_tokenizer/azerbaijani_spm.model"
+spm_model_path = "../tokenizer_embedder/SP_aze_tokenizer/azerbaijani_spm.model"
 sp = spm.SentencePieceProcessor(model_file=spm_model_path)
 
 # Load your pre-trained BERT model
-bert_model_path = "../tokenizer_embedder/bert_mlm_az_model"
+bert_model_path = "../tokenizer_embedder/BertMasked_aze_embedder"
 bert_model = BertModel.from_pretrained(bert_model_path)
 
 
@@ -18,7 +18,7 @@ hidden_size = 128  # Update with the appropriate hidden size
 num_classes = 3  # Update with the appropriate number of classes
 
 # Optional: Define a mapping from class indices to labels (if applicable)
-class_labels = {0: "Positive", 1: "Negative", 2: "Neutral"}  # Example mapping
+class_labels = {1: "Positive", 0: "Negative", 2: "Neutral"}  # Example mapping
 
 # Define device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,7 +33,7 @@ classifier_model.eval()
 
 def preprocess_text_for_inference(sentence):
     # Preprocess the input sentence
-    processed_sentence = preprocess_text(sentence)
+    processed_sentence = sentence.lower()
     
     # Tokenize the sentence using SentencePiece
     tokens = sp.encode(processed_sentence)
@@ -82,7 +82,7 @@ def inference(sentence):
 
 
 # Example usage:
-sentence = "Maraqlılar, siber təhlükəsizlik zəifliklərindən istifadə edərək bank məlumatlarını soyuq havaya salmaqda uğurlu olmuşdur."
+sentence = "korporativ təlim və tövsiyələr, işçilərin siber təhlükələrə qarşı daha çox ehtiyatlı olmasına kömək edir."
 
 # Perform inference
 # Perform inference

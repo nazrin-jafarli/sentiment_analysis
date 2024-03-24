@@ -4,37 +4,38 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torch.nn.utils.rnn import pad_sequence
 import sentencepiece as spm
 import matplotlib.pyplot as plt
-from preprocess_data import preprocess_text
 import os
-
-
-
 
 spm_model_path = "SP_aze_tokenizer/azerbaijani_spm.model"
 sp_model = spm.SentencePieceProcessor(model_file=spm_model_path)
+
 # Define the special token for masking
-mask_token_id = sp_model.piece_to_id("[MASK]")
-max_length = 256
-num_epochs = 3
-batch_size = 8
-learning_rate = 5e-5
+mask_token = "[MASK]"
+
+mask_token_id = sp_model.piece_to_id(mask_token)
+
+max_length = 128
+num_epochs = 10 # 20
+batch_size = 8 # 16 or 32
+learning_rate = 0.0001
 
 
 class AzerbaijaniDataset(Dataset):
-    def __init__(self, data_file, sp_model, max_length=256):
+    def __init__(self, data_file, sp_model, max_length=128):
         self.tokenized_data = []
         with open(data_file, "r", encoding="utf-8") as file:
             for line in file:
-                # Preprocess the text by removing punctuation and converting to lowercase
-                preprocessed_line = preprocess_text(line)
+                line = line.strip().lower()
                 # Tokenize the preprocessed text and truncate/pad tokens to max_length
-                tokens = sp_model.encode(preprocessed_line, out_type=int)
+                tokens = sp_model.encode(line, out_type=int)
                 # Apply padding or truncation logic
                 if len(tokens) > max_length:
                     tokens = tokens[:max_length]
                 else:
                     tokens += [0] * (max_length - len(tokens))
                 self.tokenized_data.append(tokens)
+
+            # print(self.tokenized_data)
 
     def __len__(self):
         return len(self.tokenized_data)
@@ -57,7 +58,7 @@ config = BertConfig(
 model = BertForMaskedLM(config=config)
 
 
-data_file = "sample_data/sample.txt"  # Start with a minimum of around 10,000 sentences
+data_file = 'main_data/final_data_10000.txt'  # Start with a minimum of around 10,000 sentences
 dataset = AzerbaijaniDataset(data_file, sp_model)
 
 
@@ -102,7 +103,7 @@ def train_model(model, train_dataloader, val_dataloader, optimizer, scheduler, d
     checkpoint_dir = "BertMasked_aze_embedder"
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-    best_model_path = os.path.join(checkpoint_dir, "bert_mlm_az_best_model.pth")
+    best_model_path = checkpoint_dir
 
     for epoch in range(num_epochs):
         total_loss = 0
@@ -133,14 +134,14 @@ def train_model(model, train_dataloader, val_dataloader, optimizer, scheduler, d
 
         # Save the best model
         if val_loss < best_val_loss:
-            torch.save(model.state_dict(), best_model_path)
+            model.save_pretrained(best_model_path)
             best_val_loss = val_loss
 
-
-    # Load the state dict into the existing model instance
-    model.load_state_dict(torch.load(best_model_path))
+    
+    # Load the best model
+    best_model = BertForMaskedLM.from_pretrained(best_model_path)
     # best_model.load_state_dict(torch.load(best_model_path))
-    return train_losses, val_losses, model
+    return train_losses, val_losses, best_model
 
 
 # Initialize optimizer and scheduler

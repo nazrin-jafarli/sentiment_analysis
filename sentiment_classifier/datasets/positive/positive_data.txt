@@ -1,5 +1,0 @@
-Korporativ şirkətlər, siber təhlükələrə qarşı müdafiəyə qurğuların və proqramların yenilənməsinə investisiya edirlər.
-Müxtəlif parol istifadə etmək və avtomatik güncellemələri aktivləşdirmək istifadəçilərin kompüterlərini daha təhlükəsiz edir.
-Düzgün şəbəkə konfiqurasiyası və firewall tənzimləri ilə şirkətlər məlumatlarını müdafiə edirlər.
-Sensitiv məlumatların rəqabətli qorunması şirkətin güvənliyini və etibarlılığını artırır.
-Korporativ təlim və tövsiyələr, işçilərin siber təhlükələrə qarşı daha çox ehtiyatlı olmasına kömək edir.
