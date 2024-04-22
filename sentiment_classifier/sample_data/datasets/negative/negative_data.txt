@@ -1,5 +1,0 @@
-hackerlar, şəxsi məlumatlara giriş əldə etmək üçün korporativ şəbəkələrə daxil olurlar.
-virüslər, istifadəçilərin kompüterlərini məxfi məlumatların çalınması üçün istifadə edirlər.
-rəqib tərəf, qoşğulu məlumatlar əldə etmək üçün firmanın siber təhlükəsizlik dəhlizi nüanslarını istifadə edir.
-firmanın şəxsi məlumatları çalındıqdan sonra, müştərilər etibarsız oldu və şirkətin imici zərər gördü.
-maraqlılar, siber təhlükəsizlik zəifliklərindən istifadə edərək bank məlumatlarını soyuq havaya salmaqda uğurlu olmuşdur.
