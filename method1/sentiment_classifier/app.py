@@ -33,29 +33,45 @@ async def train_model():
 import os
 
 from fastapi import HTTPException
+import tempfile
+import traceback
 
 @app.post("/write_to_folder")
 async def write_to_folder(sentence: str, label: str):
-    # Validate label to prevent directory traversal attacks
-    allowed_labels = ['positive', 'negative', 'neutral', 'unlabelled']
-    if label.lower() not in allowed_labels:
-        return {"error": "Invalid label"}
-
-    sentence = sentence.lower()
-    folder_path = f"./main_data/{label.lower()}"
-    
     try:
-        os.makedirs(folder_path, exist_ok=True)
-        
-        # Change folder permissions
-        os.chmod(folder_path, 0o755)
-        
-        with open(os.path.join(folder_path, f"{label.lower()}_sentences.txt"), "a") as f:
-            f.write(sentence + "\n")
-        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            folder_path = os.path.join(temp_dir, label.lower())
+            os.makedirs(folder_path, exist_ok=True)
+            with open(os.path.join(folder_path, f"{label.lower()}_sentences.txt"), "a", encoding="utf-8") as f:
+                f.write(sentence + "\n")
         return {"message": "Sentence written to folder successfully."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error writing sentence to folder: {e}")
+        traceback.print_exc()  # Print the exception traceback to console
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# @app.post("/write_to_folder")
+# async def write_to_folder(sentence: str, label: str):
+#     # Validate label to prevent directory traversal attacks
+#     allowed_labels = ['positive', 'negative', 'neutral', 'unlabelled']
+#     if label.lower() not in allowed_labels:
+#         return {"error": "Invalid label"}
+
+#     sentence = sentence.lower()
+#     folder_path = f"./main_data/{label.lower()}"
+    
+#     try:
+#         os.makedirs(folder_path, exist_ok=True)
+        
+#         # Change folder permissions
+#         os.chmod(folder_path, 0o755)
+        
+#         with open(os.path.join(folder_path, f"{label.lower()}_sentences.txt"), "a") as f:
+#             f.write(sentence + "\n")
+        
+#         return {"message": "Sentence written to folder successfully."}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Error writing sentence to folder: {e}")
 
 
     

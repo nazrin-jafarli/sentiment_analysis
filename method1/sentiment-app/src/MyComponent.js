@@ -18,9 +18,9 @@ const Button = ({ onClick, children }) => {
     <button 
       onClick={onClick} 
       style={{
-        backgroundColor: '#006400', // Dark green background color
+        backgroundColor: '#00008B', // Dark green background color
         color: 'white', // White text color
-        border: '1px solid #7CFC00', // Light green border
+        border: '1px solid #ADD8E6', // Light green border
         borderRadius: '4px', // Rounded corners
         padding: '0.5rem 1rem', // Padding
         cursor: 'pointer', // Cursor on hover
@@ -35,9 +35,7 @@ const Button = ({ onClick, children }) => {
 
 export default function Component() {
   const [inputSentenceForTraining, setInputSentenceForTraining] = useState('');
-  const [selectedLabelForTraining, setSelectedLabelForTraining] = useState('');
   const [inputSentenceForInference, setInputSentenceForInference] = useState('');
-  const [selectedLabelForReTraining, setSelectedLabelForReTraining] = useState('');
   const [outputSentiment, setOutputSentiment] = useState('');
 
   const runInference = async () => {
@@ -62,10 +60,8 @@ export default function Component() {
 
       if (section === 'training') {
         setInputSentenceForTraining('');
-        setSelectedLabelForTraining('');
       } else if (section === 'retrain') {
         setInputSentenceForInference('');
-        setSelectedLabelForReTraining('');
       }
     } catch (error) {
       console.error('Error writing sentence to folder:', error);
@@ -89,11 +85,10 @@ export default function Component() {
     <div className="container">
       {/* Welcome Text Section */}
       <div className="welcome-text" style={{ textAlign: 'center' }}>
-        <h1>Welcome to Sentiment Analysis Tool!</h1>
+        <h1>Welcome to Automated User Analyzer Tool!</h1>
         <p>Train your model and predict sentiment of sentences.</p>
       </div>
       <div className="training-inference" style={{ display: 'flex' }}>
-        {/* Welcome Text Section */}
         {/* Training Section */}
         <div className="w-1/2" style={{ display: 'flex', flexDirection: 'column', marginRight: '200px',marginLeft: '100px' }}>
           <div className="space-y-4">
@@ -110,11 +105,9 @@ export default function Component() {
               />
             </div>
             <div className="space-y-2">
-              {/* <Label>Label</Label> */}
               <div className="flex space-x-2">
                 <Button
                   onClick={() => {
-                    setSelectedLabelForTraining('positive');
                     writeToFolder(inputSentenceForTraining, 'positive', 'training');
                   }}
                 >
@@ -122,7 +115,6 @@ export default function Component() {
                 </Button>
                 <Button
                   onClick={() => {
-                    setSelectedLabelForTraining('negative');
                     writeToFolder(inputSentenceForTraining, 'negative', 'training');
                   }}
                 >
@@ -130,7 +122,6 @@ export default function Component() {
                 </Button>
                 <Button
                   onClick={() => {
-                    setSelectedLabelForTraining('neutral');
                     writeToFolder(inputSentenceForTraining, 'neutral', 'training');
                   }}
                 >
@@ -138,7 +129,6 @@ export default function Component() {
                 </Button>
                 <Button
                   onClick={() => {
-                    setSelectedLabelForTraining('unlabelled');
                     writeToFolder(inputSentenceForTraining, 'unlabelled', 'training');
                   }}
                 >
@@ -172,7 +162,6 @@ export default function Component() {
             <div className="flex space-x-2">
               <Button
                 onClick={() => {
-                  setSelectedLabelForReTraining('positive');
                   writeToFolder(inputSentenceForInference, 'positive', 'retrain');
                 }}
               >
@@ -180,7 +169,6 @@ export default function Component() {
               </Button>
               <Button
                 onClick={() => {
-                  setSelectedLabelForReTraining('negative');
                   writeToFolder(inputSentenceForInference, 'negative', 'retrain');
                 }}
               >
@@ -188,7 +176,6 @@ export default function Component() {
               </Button>
               <Button
                 onClick={() => {
-                  setSelectedLabelForReTraining('neutral');
                   writeToFolder(inputSentenceForInference, 'neutral', 'retrain');
                 }}
               >
@@ -196,7 +183,6 @@ export default function Component() {
               </Button>
               <Button
                 onClick={() => {
-                  setSelectedLabelForReTraining('unlabelled');
                   writeToFolder(inputSentenceForInference, 'unlabelled', 'retrain');
                 }}
               >
@@ -209,6 +195,4 @@ export default function Component() {
       </div>
     </div>
   );
-  
-  
 }
